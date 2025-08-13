@@ -15,6 +15,7 @@ PIPELINE_PATH = "models/pipeline.joblib"
 def load_pipeline():
     if not os.path.exists(PIPELINE_PATH):
         st.error(f"Missing model file: {PIPELINE_PATH}")
+        return
         st.stop()
     return joblib.load(PIPELINE_PATH)
 
@@ -55,8 +56,8 @@ def predict_with_ci(pipe, X, n_boot=500, alpha=0.2, seed=RANDOM_SEED):
 
 def sidebar_inputs():
     st.sidebar.header("Inputs")
-    state = st.sidebar.text_input("State (2-letter)", value="CA", max_chars=2)
-    zip_code = st.sidebar.text_input("ZIP (optional)", value="")
+    state = st.sidebar.text_input("State (2-letter)", value="DE", max_chars=2)
+    zip_code = st.sidebar.text_input("ZIP (optional)", value="19702")
     school_type = st.sidebar.selectbox("School type", ["Middle", "High"])
     student_pop = st.sidebar.number_input("Student population", 50, 5000, 800)
     urbanicity = st.sidebar.selectbox("Community size", ["Urban", "Suburban", "Rural"], index=1)
