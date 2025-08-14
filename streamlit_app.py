@@ -1,34 +1,44 @@
 import streamlit as st
 import torch
 import numpy as np
+import pandas as pd
 import joblib
-from sklearn.preprocessing import OneHotEncoder
+from MultiTaskModel import MultiTaskModel
 
+# Load saved encoder and model
+encoder = joblib.load("encoder.pkl")
 
-# Load model and encoder
-model = torch.load("model.pth", weights_only=False)  # ⚠ Only if trusted file
+# Input dimension from encoder + numeric feature
+input_dim = encoder.transform([["middle", "club fundraiser"]]).shape[1] + 1
+model = MultiTaskModel(input_dim=input_dim)
+model.load_state_dict(torch.load("model.pth"))
 model.eval()
-encoder = OneHotEncoder(sparse_output=False)
 
-# Define UI
-st.title("School-Business Success Predictor")
-school = st.selectbox("Select School Type", ["Middle School", "High School"])
-btype = st.selectbox("Select Business Type", ["Retail", "Food Service", "Tutoring", "Other"])
+# Load revenue scaling
+rev_min, rev_max = joblib.load("rev_min_max.pkl")
 
-# Predict button
+st.title("School-Business Revenue & Survival Predictor")
+
+school_level = st.selectbox("Select School Type", ["middle", "high"])
+business_type = st.selectbox("Select Business Type", [
+    "Club Fundraiser", "School Store & Snack Shop", "Concessions",
+    "School Store", "Culinary Shop", "Plant & Flower Fundraiser",
+    "Prom & Homecoming tickets"
+])
+avg_operating_time = st.number_input("Expected Operating Time (days)", min_value=1, value=180)
+
 if st.button("Predict"):
-    # Encode input
-    ex_cat = encoder.transform([[school, btype]])  # categorical only
-    ex_tensor = torch.tensor(ex_cat, dtype=torch.float32)
+    # Encode categorical inputs
+    cat_input = encoder.transform([[school_level, business_type.lower()]])
+    num_input = np.array([[avg_operating_time]])
+    x_input = np.hstack([cat_input, num_input])
+    x_tensor = torch.tensor(x_input, dtype=torch.float32)
 
     # Run model
-    rev_pred, surv_pred = model(ex_tensor)
-    
-    # Rescale revenue (adjust if min/max saved somewhere)
-    rev_min, rev_max = joblib.load("rev_min_max.pkl")
-    rev_rescaled = rev_pred.item() * (rev_max - rev_min) + rev_min
+    with torch.no_grad():
+        rev_pred, surv_pred = model(x_tensor)
+        rev_rescaled = rev_pred.item() * (rev_max - rev_min) + rev_min
 
-    # Output results
     st.write(f"**Predicted Annual Revenue:** ${rev_rescaled:,.2f}")
     st.write(f"**Survival ≥1 month:** {surv_pred[0,0].item()*100:.1f}%")
     st.write(f"**Survival ≥3 months:** {surv_pred[0,1].item()*100:.1f}%")
